@@ -1,17 +1,18 @@
 {
     "name": "baguettebox.js",
-    "version": "1.12.0",
-    "author": "feimosi",
+    "version": "2.0.1",
+    "author": "axshae",
     "description": "Simple and easy to use lightbox script written in pure JavaScript",
     "license": "MIT",
-    "homepage": "https://github.com/feimosi/baguetteBox.js",
+    "homepage": "https://github.com/axshae/baguetteBox.js",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/feimosi/baguetteBox.js.git"
+        "url": "git+https://github.com/axshae/baguetteBox.js.git"
     },
     "bugs": {
-        "url": "https://github.com/feimosi/baguetteBox.js/issues"
+        "url": "https://github.com/axshae/baguetteBox.js/issues"
     },
+    "type": "module",
     "main": "dist/baguetteBox.min.js",
     "style": "dist/baguetteBox.min.css",
     "files": [
@@ -20,35 +21,45 @@
     ],
     "scripts": {
         "postinstall": "npm rebuild node-sass",
-        "start": "gulp",
-        "lint": "gulp lint",
-        "test": "gulp test",
-        "build": "gulp build",
-        "release": "gulp release",
-        "patch": "gulp patch"
+        "build": "rollup -c",
+        "release": "standard-version && npm run build",
+        "watch": "rollup -c -w",
+        "gulp:start": "gulp",
+        "gulp:lint": "gulp lint",
+        "gulp:test": "gulp test",
+        "gulp:release": "gulp release",
+        "gulp:patch": "gulp patch",
+        "gulp:build": "gulp build",
+        "rollup:build": "rollup -c",
+        "rollup:watch": "rollup -c -w",
+        "demo:start": "npx nodemon --watch . --ext js,html,css --exec \"npx http-server demo/\""
     },
     "resolutions": {
         "natives": "1.1.3"
     },
     "devDependencies": {
-        "browser-sync": "^2.26.7",
-        "gulp": "^3.9.1",
-        "gulp-autoprefixer": "^6.1.0",
-        "gulp-bump": "^3.1.3",
+        "@rollup/plugin-replace": "~6.0.2",
+        "@rollup/plugin-terser": "~0.4.4",
+        "browser-sync": "^3.0.3",
+        "gulp": "^5.0.0",
+        "gulp-autoprefixer": "^9.0.0",
+        "gulp-bump": "^3.2.0",
         "gulp-concat": "^2.6.1",
         "gulp-cssmin": "~0.2.0",
-        "gulp-eslint": "^5.0.0",
+        "gulp-eslint": "^6.0.0",
         "gulp-gh-pages": "~0.5.4",
-        "gulp-if": "^2.0.2",
+        "gulp-if": "^3.0.0",
         "gulp-inject-version": "^1.0.1",
-        "gulp-load-plugins": "^2.0.2",
-        "gulp-rimraf": "~0.2.2",
-        "gulp-sass": "~5.1.0",
+        "gulp-load-plugins": "^2.0.8",
+        "gulp-rimraf": "~1.0.0",
+        "gulp-sass": "~6.0.0",
         "gulp-uglify": "^3.0.2",
         "gulp-usemin": "~0.3.30",
-        "jsonfile": "^6.0.1",
+        "jsonfile": "^6.1.0",
+        "rollup": "~4.32.0",
+        "rollup-plugin-scss": "~4.0.1",
         "run-sequence": "^2.2.1",
-        "sass": "~1.77.8"
+        "standard-version": "~9.5.0"
     },
     "overrides": {
         "graceful-fs": "^4.2.11",
@@ -59,5 +70,8 @@
         "gallery",
         "modal",
         "responsive"
-    ]
+    ],
+    "dependencies": {
+        "sass": "~1.83.4"
+    }
 }
