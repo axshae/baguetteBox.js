@@ -133,18 +133,15 @@
         event.preventDefault();
         const image = imagesElements[currentIndex].querySelector('img');
         
-        if (currentScale >= maxZoomValue) {
+        if (currentScale > 1) {
             // If at max zoom, reset to original size
             currentScale = 1;
             currentPanX = 0;
             currentPanY = 0;
-        } else if (currentScale === 1) {
+        } else  {
             // Zoom in to middle zoom level
             currentScale = maxZoomValue / 2;
-        } else {
-            // Zoom to max
-            currentScale = maxZoomValue;
-        }
+        } 
 
         lastScale = currentScale;
         isZoomed = currentScale > 1;
