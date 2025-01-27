@@ -1,12 +1,11 @@
 /*!
  * baguetteBox.js
- * @author  feimosi
- * @version %%INJECT_VERSION%%
- * @url https://github.com/feimosi/baguetteBox.js
+ * @author  axshae
+ * @version __VERSION__
+ * @url https://github.com/axshae/baguetteBox.js
  */
 
 /* global define, module */
-
 (function (root, factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
@@ -16,11 +15,11 @@
     } else {
         root.baguetteBox = factory();
     }
-}(this, function () {
+}(typeof self !== 'undefined' ? self : this, function () {
     'use strict';
-
+    console.log('baguetteBox.js loaded');
     // SVG shapes used on the buttons
-    var leftArrow = '<svg width="44" height="60">' +
+    let leftArrow = '<svg width="44" height="60">' +
             '<polyline points="30 10 10 30 30 50" stroke="rgba(255,255,255,0.5)" stroke-width="4"' +
               'stroke-linecap="butt" fill="none" stroke-linejoin="round"/>' +
             '</svg>',
@@ -34,7 +33,7 @@
             '<line x1="5" y1="25" x2="25" y2="5"/>' +
             '</g></svg>';
     // Global options and their defaults
-    var options = {},
+    let options = {},
         defaults = {
             captions: true,
             buttons: 'auto',
@@ -54,46 +53,49 @@
             rightArrow: rightArrow,
         };
     // Object containing information about features compatibility
-    var supports = {};
+    let supports = {};
     // DOM Elements references
-    var overlay, slider, previousButton, nextButton, closeButton;
+    let overlay, slider, previousButton, nextButton, closeButton;
     // An array with all images in the current gallery
-    var currentGallery = [];
+    let currentGallery = [];
     // Current image index inside the slider
-    var currentIndex = 0;
+    let currentIndex = 0;
     // Visibility of the overlay
-    var isOverlayVisible = false;
+    let isOverlayVisible = false;
     // Touch event start position (for slide gesture)
-    var touch = {};
+    let touch = {};
     // If set to true ignore touch events because animation was already fired
-    var touchFlag = false;
+    let touchFlag = false;
     // Regex pattern to match image files
-    var regex = /.+\.(gif|jpe?g|png|webp)/i;
+    let regex = /.+\.(gif|jpe?g|png|webp)/i;
     // Object of all used galleries
-    var data = {};
+    let data = {};
     // Array containing temporary images DOM elements
-    var imagesElements = [];
+    let imagesElements = [];
     // The last focused element before opening the overlay
-    var documentLastFocus = null;
-    var overlayClickHandler = function(event) {
+    let documentLastFocus = null;
+    let isZoomed = false, currentScale = 1, lastScale = 1, startPanX = 0, startPanY = 0, currentPanX = 0, currentPanY = 0;
+    let maxZoomValue = 5;
+    let pinchStartDistance = 0;
+    let overlayClickHandler = function(event) {
         // Close the overlay when user clicks directly on the background
         if (event.target.id.indexOf('baguette-img') !== -1) {
             hideOverlay();
         }
     };
-    var previousButtonClickHandler = function(event) {
+    let previousButtonClickHandler = function(event) {
         event.stopPropagation ? event.stopPropagation() : event.cancelBubble = true; // eslint-disable-line no-unused-expressions
         showPreviousImage();
     };
-    var nextButtonClickHandler = function(event) {
+    let nextButtonClickHandler = function(event) {
         event.stopPropagation ? event.stopPropagation() : event.cancelBubble = true; // eslint-disable-line no-unused-expressions
         showNextImage();
     };
-    var closeButtonClickHandler = function(event) {
+    let closeButtonClickHandler = function(event) {
         event.stopPropagation ? event.stopPropagation() : event.cancelBubble = true; // eslint-disable-line no-unused-expressions
         hideOverlay();
     };
-    var touchstartHandler = function(event) {
+    let touchstartHandler = function(event) {
         touch.count++;
         if (touch.count > 1) {
             touch.multitouch = true;
@@ -101,38 +103,146 @@
         // Save x and y axis position
         touch.startX = event.changedTouches[0].pageX;
         touch.startY = event.changedTouches[0].pageY;
+        if (isZoomed) {
+            startPanX = currentPanX;
+            startPanY = currentPanY;
+        }
     };
-    var touchmoveHandler = function(event) {
-        // If action was already triggered or multitouch return
-        if (touchFlag || touch.multitouch) {
+    const resetImages = function() {
+        console.log('resetImages');
+        for (let i = 0; i < imagesElements.length; i++) {
+            let image = imagesElements[i].getElementsByTagName('img')[0];
+            if (image) {
+                image.style.transform = '';
+                image.style.transition = '';
+            }
+        }
+    };
+
+    const resetVariables = function() {
+        isZoomed = false;
+        currentScale = 1;
+        lastScale = 1;
+        startPanX = 0;
+        startPanY = 0;
+        currentPanX = 0;
+        currentPanY = 0;
+    }
+
+    let dblClickHandler = function(event) {
+        event.preventDefault();
+        const image = imagesElements[currentIndex].querySelector('img');
+        
+        if (currentScale >= maxZoomValue) {
+            // If at max zoom, reset to original size
+            currentScale = 1;
+            currentPanX = 0;
+            currentPanY = 0;
+        } else if (currentScale === 1) {
+            // Zoom in to middle zoom level
+            currentScale = maxZoomValue / 2;
+        } else {
+            // Zoom to max
+            currentScale = maxZoomValue;
+        }
+
+        lastScale = currentScale;
+        isZoomed = currentScale > 1;
+        image.style.transition = 'transform 0.3s ease-out';  // Add transition for smooth zooming
+
+        image.style.transform = `translate3d(${currentPanX}px,${currentPanY}px,0) scale(${currentScale})`;
+    };
+
+    let touchmoveHandler = function(event) {
+        if (touchFlag) return;
+        event.preventDefault ? event.preventDefault() : event.returnValue = false;
+        let touchEvent = event.touches[0] || event.changedTouches[0];
+        let zoomedImage = imagesElements[currentIndex].querySelector('img');
+        // reset the transition duration
+        zoomedImage.style.transition = 'transform 0s ease-out';
+        if (!touch.multitouch && isZoomed && currentScale > 1) {
+            let deltaX = event.touches[0].pageX - touch.startX;
+            let deltaY = event.touches[0].pageY - touch.startY;
+
+            currentPanX = startPanX + deltaX;
+            currentPanY = startPanY + deltaY;
+
+            let scaledWidth = zoomedImage.width * currentScale;
+            let scaledHeight = zoomedImage.height * currentScale;
+            let containerWidth = overlay.clientWidth;
+            let containerHeight = overlay.clientHeight;
+
+            let maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2);
+            let maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2);
+
+            currentPanX = Math.max(-maxPanX, Math.min(maxPanX, currentPanX));
+            currentPanY = Math.max(-maxPanY, Math.min(maxPanY, currentPanY));
+
+            zoomedImage.style.transform = `translate3d(${currentPanX}px,${currentPanY}px,0) scale(${currentScale})`;
             return;
         }
-        event.preventDefault ? event.preventDefault() : event.returnValue = false; // eslint-disable-line no-unused-expressions
-        var touchEvent = event.touches[0] || event.changedTouches[0];
-        // Move at least 40 pixels to trigger the action
-        if (touchEvent.pageX - touch.startX > 40) {
+
+        if (touch.multitouch) {
+            event.preventDefault();
+            let t1 = event.touches[0], t2 = event.touches[1];
+            if (!t1 || !t2) return;
+            let dist = Math.hypot(t2.pageX - t1.pageX, t2.pageY - t1.pageY);
+            if (!pinchStartDistance) pinchStartDistance = dist;
+            currentScale = Math.min((dist / pinchStartDistance) * lastScale, maxZoomValue);
+            currentScale = Math.max(1, currentScale);
+
+            if (currentScale === 1) {
+                currentPanX = 0;
+                currentPanY = 0;
+            } else {
+                let scaledWidth = zoomedImage.width * currentScale;
+                let scaledHeight = zoomedImage.height * currentScale;
+                let containerWidth = overlay.clientWidth;
+                let containerHeight = overlay.clientHeight;
+
+                let maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2);
+                let maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2);
+                currentPanX = Math.max(-maxPanX, Math.min(maxPanX, currentPanX));
+                currentPanY = Math.max(-maxPanY, Math.min(maxPanY, currentPanY));
+            }
+
+            zoomedImage.style.transform = `translate3d(${currentPanX}px,${currentPanY}px,0) scale(${currentScale})`;
+            isZoomed = currentScale > 1;
+            return;
+        }
+
+        if (currentScale === 1) isZoomed = false;
+
+        let deltaX = touchEvent.pageX - touch.startX;
+        let deltaY = touchEvent.pageY - touch.startY;
+
+        if (deltaX > 40) {
             touchFlag = true;
+            isZoomed = false;
             showPreviousImage();
-        } else if (touchEvent.pageX - touch.startX < -40) {
+        } else if (deltaX < -40) {
             touchFlag = true;
+            isZoomed = false;
             showNextImage();
-        // Move 100 pixels up to close the overlay
-        } else if (touch.startY - touchEvent.pageY > 100) {
+        } else if (deltaY > 100 || deltaY < -100) {
+            isZoomed = false;
             hideOverlay();
         }
     };
-    var touchendHandler = function() {
+    let touchendHandler = function() {
         touch.count--;
         if (touch.count <= 0) {
             touch.multitouch = false;
+            lastScale = currentScale;
+            pinchStartDistance = 0;
         }
         touchFlag = false;
     };
-    var contextmenuHandler = function() {
+    let contextmenuHandler = function() {
         touchendHandler();
     };
 
-    var trapFocusInsideOverlay = function(event) {
+    let trapFocusInsideOverlay = function(event) {
         if (overlay.style.display === 'block' && (overlay.contains && !overlay.contains(event.target))) {
             event.stopPropagation();
             initFocus();
@@ -144,7 +254,7 @@
     /* eslint-disable */
     if (![].forEach) {
         Array.prototype.forEach = function(callback, thisArg) {
-            for (var i = 0; i < this.length; i++) {
+            for (let i = 0; i < this.length; i++) {
                 callback.call(thisArg, this[i], i, this);
             }
         };
@@ -177,8 +287,8 @@
 
     function bindImageClickListeners(selector, userOptions) {
         // For each gallery bind a click event to every image inside it
-        var galleryNodeList = document.querySelectorAll(selector);
-        var selectorData = {
+        let galleryNodeList = document.querySelectorAll(selector);
+        let selectorData = {
             galleries: [],
             nodeList: galleryNodeList
         };
@@ -190,7 +300,7 @@
             }
 
             // Get nodes from gallery elements or single-element galleries
-            var tagsNodeList = [];
+            let tagsNodeList = [];
             if (galleryElement.tagName === 'A') {
                 tagsNodeList = [galleryElement];
             } else {
@@ -207,14 +317,14 @@
                 return;
             }
 
-            var gallery = [];
+            let gallery = [];
             [].forEach.call(tagsNodeList, function(imageElement, imageIndex) {
-                var imageElementClickHandler = function(event) {
+                let imageElementClickHandler = function(event) {
                     event.preventDefault ? event.preventDefault() : event.returnValue = false; // eslint-disable-line no-unused-expressions
                     prepareOverlay(gallery, userOptions);
                     showOverlay(imageIndex);
                 };
-                var imageItem = {
+                let imageItem = {
                     eventHandler: imageElementClickHandler,
                     imageElement: imageElement
                 };
@@ -228,7 +338,7 @@
     }
 
     function clearCachedData() {
-        for (var selector in data) {
+        for (let selector in data) {
             if (data.hasOwnProperty(selector)) {
                 removeFromCache(selector);
             }
@@ -239,7 +349,7 @@
         if (!data.hasOwnProperty(selector)) {
             return;
         }
-        var galleries = data[selector].galleries;
+        let galleries = data[selector].galleries;
         [].forEach.call(galleries, function(gallery) {
             [].forEach.call(gallery, function(imageItem) {
                 unbind(imageItem.imageElement, 'click', imageItem.eventHandler);
@@ -265,6 +375,8 @@
         }
         // Create overlay element
         overlay = create('div');
+        // Disable default pinch on overlay
+        // overlay.style.touchAction = 'none';
         overlay.setAttribute('role', 'dialog');
         overlay.id = 'baguetteBox-overlay';
         document.getElementsByTagName('body')[0].appendChild(overlay);
@@ -320,8 +432,8 @@
     }
 
     function bindEvents() {
-        var passiveEvent = supports.passiveEvents ? { passive: false } : null;
-        var nonPassiveEvent = supports.passiveEvents ? { passive: true } : null;
+        let passiveEvent = supports.passiveEvents ? { passive: false } : null;
+        let nonPassiveEvent = supports.passiveEvents ? { passive: true } : null;
 
         bind(overlay, 'click', overlayClickHandler);
         bind(previousButton, 'click', previousButtonClickHandler);
@@ -332,11 +444,12 @@
         bind(overlay, 'touchmove', touchmoveHandler, passiveEvent);
         bind(overlay, 'touchend', touchendHandler);
         bind(document, 'focus', trapFocusInsideOverlay, true);
+        bind(overlay, 'dblclick', dblClickHandler);
     }
 
     function unbindEvents() {
-        var passiveEvent = supports.passiveEvents ? { passive: false } : null;
-        var nonPassiveEvent = supports.passiveEvents ? { passive: true } : null;
+        let passiveEvent = supports.passiveEvents ? { passive: false } : null;
+        let nonPassiveEvent = supports.passiveEvents ? { passive: true } : null;
 
         unbind(overlay, 'click', overlayClickHandler);
         unbind(previousButton, 'click', previousButtonClickHandler);
@@ -347,6 +460,7 @@
         unbind(overlay, 'touchmove', touchmoveHandler, passiveEvent);
         unbind(overlay, 'touchend', touchendHandler);
         unbind(document, 'focus', trapFocusInsideOverlay, true);
+        unbind(overlay, 'dblclick', dblClickHandler);
     }
 
     function prepareOverlay(gallery, userOptions) {
@@ -363,10 +477,10 @@
         }
         imagesElements.length = 0;
 
-        var imagesFiguresIds = [];
-        var imagesCaptionsIds = [];
+        let imagesFiguresIds = [];
+        let imagesCaptionsIds = [];
         // Prepare and append images containers and populate figure and captions IDs arrays
-        for (var i = 0, fullImage; i < gallery.length; i++) {
+        for (let i = 0, fullImage; i < gallery.length; i++) {
             fullImage = create('div');
             fullImage.className = 'full-image';
             fullImage.id = 'baguette-img-' + i;
@@ -385,7 +499,7 @@
             newOptions = {};
         }
         // Fill options object
-        for (var item in defaults) {
+        for (let item in defaults) {
             options[item] = defaults[item];
             if (typeof newOptions[item] !== 'undefined') {
                 options[item] = newOptions[item];
@@ -488,6 +602,7 @@
     }
 
     function hideOverlay() {
+        resetImages();
         if (options.noScrollbars) {
             document.documentElement.style.overflowY = 'auto';
             document.body.style.overflowY = 'auto';
@@ -495,7 +610,6 @@
         if (overlay.style.display === 'none') {
             return;
         }
-
         unbind(document, 'keydown', keyDownHandler);
         // Fade out and hide the overlay
         overlay.className = '';
@@ -512,12 +626,14 @@
             }
             documentLastFocus && documentLastFocus.focus();
             isOverlayVisible = false;
+            // Reset zoom and pan to default
+            resetVariables();
         }, 500);
     }
 
     function loadImage(index, callback) {
-        var imageContainer = imagesElements[index];
-        var galleryItem = currentGallery[index];
+        let imageContainer = imagesElements[index];
+        let galleryItem = currentGallery[index];
 
         // Return if the index exceeds prepared images in the overlay
         // or if the current gallery has been changed / closed
@@ -534,15 +650,15 @@
         }
 
         // Get element reference, optional caption and source path
-        var imageElement = galleryItem.imageElement;
-        var thumbnailElement = imageElement.getElementsByTagName('img')[0];
-        var imageCaption = typeof options.captions === 'function' ?
+        let imageElement = galleryItem.imageElement;
+        let thumbnailElement = imageElement.getElementsByTagName('img')[0];
+        let imageCaption = typeof options.captions === 'function' ?
             options.captions.call(currentGallery, imageElement) :
             imageElement.getAttribute('data-caption') || imageElement.title;
-        var imageSrc = getImageSrc(imageElement);
+        let imageSrc = getImageSrc(imageElement);
 
         // Prepare figure element
-        var figure = create('figure');
+        let figure = create('figure');
         figure.id = 'baguetteBox-figure-' + index;
         figure.innerHTML = '<div class="baguetteBox-spinner">' +
             '<div class="baguetteBox-double-bounce1"></div>' +
@@ -550,7 +666,7 @@
             '</div>';
         // Insert caption if available
         if (options.captions && imageCaption) {
-            var figcaption = create('figcaption');
+            let figcaption = create('figcaption');
             figcaption.id = 'baguetteBox-figcaption-' + index;
             figcaption.innerHTML = imageCaption;
             figure.appendChild(figcaption);
@@ -558,10 +674,10 @@
         imageContainer.appendChild(figure);
 
         // Prepare gallery img element
-        var image = create('img');
+        let image = create('img');
         image.onload = function() {
             // Remove loader element
-            var spinner = document.querySelector('#baguette-img-' + index + ' .baguetteBox-spinner');
+            let spinner = document.querySelector('#baguette-img-' + index + ' .baguetteBox-spinner');
             figure.removeChild(spinner);
             if (!options.async && callback) {
                 callback();
@@ -583,24 +699,24 @@
     // Get image source location, mostly used for responsive images
     function getImageSrc(image) {
         // Set default image path from href
-        var result = image.href;
+        let result = image.href;
         // If dataset is supported find the most suitable image
         if (image.dataset) {
-            var srcs = [];
+            let srcs = [];
             // Get all possible image versions depending on the resolution
-            for (var item in image.dataset) {
+            for (let item in image.dataset) {
                 if (item.substring(0, 3) === 'at-' && !isNaN(item.substring(3))) {
                     srcs[item.replace('at-', '')] = image.dataset[item];
                 }
             }
             // Sort resolutions ascending
-            var keys = Object.keys(srcs).sort(function(a, b) {
+            let keys = Object.keys(srcs).sort(function(a, b) {
                 return parseInt(a, 10) < parseInt(b, 10) ? -1 : 1;
             });
             // Get real screen resolution
-            var width = window.innerWidth * window.devicePixelRatio;
+            let width = window.innerWidth * window.devicePixelRatio;
             // Find the first image bigger than or equal to the current width
-            var i = 0;
+            let i = 0;
             while (i < keys.length - 1 && keys[i] < width) {
                 i++;
             }
@@ -611,11 +727,15 @@
 
     // Return false at the right end of the gallery
     function showNextImage() {
+        // Reset zoom and pan before showing the next image
+        resetVariables();
         return show(currentIndex + 1);
     }
 
     // Return false at the left end of the gallery
     function showPreviousImage() {
+        // Reset zoom and pan before showing the previous image
+        resetVariables();
         return show(currentIndex - 1);
     }
 
@@ -686,7 +806,7 @@
     }
 
     function updateOffset() {
-        var offset = -currentIndex * 100 + '%';
+        let offset = -currentIndex * 100 + '%';
         if (options.animation === 'fadeIn') {
             slider.style.opacity = 0;
             setTimeout(function() {
@@ -704,13 +824,13 @@
 
     // CSS 3D Transforms test
     function testTransformsSupport() {
-        var div = create('div');
+        let div = create('div');
         return typeof div.style.perspective !== 'undefined' || typeof div.style.webkitPerspective !== 'undefined';
     }
 
     // Inline SVG test
     function testSvgSupport() {
-        var div = create('div');
+        let div = create('div');
         div.innerHTML = '<svg/>';
         return (div.firstChild && div.firstChild.namespaceURI) === 'http://www.w3.org/2000/svg';
     }
@@ -718,9 +838,9 @@
     // Borrowed from https://github.com/seiyria/bootstrap-slider/pull/680/files
     /* eslint-disable getter-return */
     function testPassiveEventsSupport() {
-        var passiveEvents = false;
+        let passiveEvents = false;
         try {
-            var opts = Object.defineProperty({}, 'passive', {
+            let opts = Object.defineProperty({}, 'passive', {
                 get: function() {
                     passiveEvents = true;
                 }
@@ -790,6 +910,7 @@
         currentGallery = [];
         currentIndex = 0;
     }
+
 
     return {
         run: run,
