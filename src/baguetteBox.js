@@ -17,7 +17,6 @@
     }
 }(typeof self !== 'undefined' ? self : this, function () {
     'use strict';
-    console.log('baguetteBox.js loaded');
     // SVG shapes used on the buttons
     let leftArrow = '<svg width="44" height="60">' +
             '<polyline points="30 10 10 30 30 50" stroke="rgba(255,255,255,0.5)" stroke-width="4"' +
@@ -109,7 +108,6 @@
         }
     };
     const resetImages = function() {
-        console.log('resetImages');
         for (let i = 0; i < imagesElements.length; i++) {
             let image = imagesElements[i].getElementsByTagName('img')[0];
             if (image) {
