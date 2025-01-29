@@ -128,6 +128,9 @@
     }
 
     let dblClickHandler = function(event) {
+        // return if screensize is desktop
+        if (window.innerWidth > 768) return;
+
         event.preventDefault();
         const image = imagesElements[currentIndex].querySelector('img');
         
