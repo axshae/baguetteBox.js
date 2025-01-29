@@ -55,6 +55,7 @@
         "gulp-sass": "~6.0.0",
         "gulp-uglify": "^3.0.2",
         "gulp-usemin": "~0.3.30",
+        "husky": "~9.1.7",
         "jsonfile": "^6.1.0",
         "rollup": "~4.32.0",
         "rollup-plugin-scss": "~4.0.1",
